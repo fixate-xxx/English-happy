@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="书语">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>书语 · 英语阅读</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;background:#f2f2f7;color:#1d1d1f;-webkit-text-size-adjust:100%}
+body.dark{background:#000;color:#f5f5f7}
+:root{--reader-size:21px}
+.view{display:none}
+.view.active{display:block}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e5e5e7;min-height:52px}
+.dark .topbar{background:rgba(20,20,22,.92);border-bottom-color:#2c2c2e}
+.topbar h1{font-size:17px;font-weight:600;margin:0;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar button{background:none;border:none;color:#007aff;font-size:16px;padding:6px 8px;font-weight:500}
+.dark .topbar button{color:#0a84ff}
+.bar-title{flex:1;text-align:center;font-size:14px;color:#86868b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-actions{display:flex;gap:2px}
+.bar-actions button{font-size:18px;padding:4px 8px}
+/* 书架 */
+.shelf{padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:16px;max-width:900px;margin:0 auto}
+.book-card{position:relative;cursor:pointer}
+.book-spine{aspect-ratio:3/4;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.9);font-size:28px;font-weight:700;overflow:hidden;padding:10px;text-align:center;font-family:Georgia,serif}
+.book-title{font-size:13px;margin-top:8px;line-height:1.35;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.book-meta{font-size:11px;color:#86868b;margin-top:2px}
+.book-del{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;background:#ff3b30;color:#fff;border:none;font-size:16px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.empty{text-align:center;color:#86868b;padding:80px 24px;font-size:15px;line-height:1.7}
+/* 阅读区 */
+.progress-bar{height:3px;background:#e5e5e7;position:sticky;top:52px;z-index:40}
+.dark .progress-bar{background:#2c2c2e}
+#progress-fill{height:100%;width:0;background:#007aff;transition:width .1s}
+#reader-content{max-width:740px;margin:0 auto;padding:20px 22px 160px;font-size:var(--reader-size);line-height:1.85;font-family:Georgia,"Times New Roman",serif}
+#reader-content p{margin:0 0 1.05em;text-align:justify}
+.chapter-title{font-family:-apple-system,"PingFang SC",sans-serif;font-size:.95em;font-weight:600;margin:1.4em 0 .7em;color:#86868b;letter-spacing:.3px}
+.word{cursor:pointer;border-radius:3px;padding:0 1px;transition:background .15s}
+.word.selected{background:#ffe066;color:#000}
+.dark .word.selected{background:#ffd60a;color:#000}
+/* 卡片 */
+#word-card{position:fixed;left:50%;bottom:0;transform:translate(-50%,110%);width:100%;max-width:720px;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -6px 30px rgba(0,0,0,.18);padding:18px 20px calc(24px + env(safe-area-inset-bottom));transition:transform .3s cubic-bezier(.32,.72,0,1);z-index:100;max-height:78vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.dark #word-card{background:#1c1c1e;color:#f5f5f7}
+#word-card.show{transform:translate(-50%,0)}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.card-word{font-size:30px;font-weight:700;letter-spacing:-.5px;font-family:-apple-system,"PingFang SC",sans-serif;display:flex;align-items:center;gap:10px}
+.speak-btn{background:#f2f2f7;border:none;border-radius:50%;width:34px;height:34px;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dark .speak-btn{background:#2c2c2e;color:#fff}
+.close-btn{background:#f2f2f7;border:none;font-size:20px;color:#86868b;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dark .close-btn{background:#2c2c2e}
+.card-phonetic{color:#86868b;font-size:15px;margin-bottom:12px;font-family:"SF Mono",monospace}
+.card-block{margin-bottom:14px}
+.card-label{font-size:11px;color:#86868b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-weight:600}
+.card-translation{font-size:19px;line-height:1.5}
+.card-definition{font-size:15px;line-height:1.55;color:#3a3a3c}
+.dark .card-definition{color:#c7c7cc}
+.card-context{font-size:14px;line-height:1.5;color:#515154;font-style:italic;padding-left:12px;border-left:3px solid #e5e5e7}
+.dark .card-context{color:#a1a1a6;border-left-color:#3a3a3c}
+.card-example{font-size:15px;line-height:1.55;color:#515154;font-style:italic;padding-left:12px;border-left:3px solid #e5e5e7}
+.dark .card-example{color:#a1a1a6;border-left-color:#3a3a3c}
+.card-actions{display:flex;gap:10px;margin-top:16px}
+.card-actions button{flex:1;padding:12px;border-radius:12px;border:none;font-size:15px;font-weight:600}
+.btn-add{background:#007aff;color:#fff}
+.btn-add.added{background:#34c759}
+.loading{color:#86868b;font-size:15px}
+.hidden{display:none!important}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;z-index:99}
+#overlay.show{display:block}
+/* 生词本 */
+#vocab-list{max-width:720px;margin:0 auto;padding:16px}
+.vocab-item{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:10px;position:relative}
+.dark .vocab-item{background:#1c1c1e}
+.vocab-word{font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px}
+.vocab-trans{color:#3a3a3c;font-size:14px;margin-top:6px;line-height:1.45}
+.dark .vocab-trans{color:#c7c7cc}
+.vocab-sentence{color:#86868b;font-size:12px;margin-top:6px;line-height:1.45;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vocab-del{position:absolute;top:10px;right:10px;background:none;border:none;color:#ff3b30;font-size:13px}
+#toast{position:fixed;top:70px;left:50%;transform:translate(-50%,-20px);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:all .25s;z-index:999;max-width:80vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (max-width:430px){
+  :root{--reader-size:18px}
+  #reader-content{padding:16px 18px 170px;font-size:var(--reader-size)}
+  .card-word{font-size:26px}
+  #word-card{max-height:82vh;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+  .shelf{padding:12px;gap:12px;grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+}
+</style>
+</head>
+<body>
+
+<div id="library" class="view active">
+  <header class="topbar">
+    <h1>书架</h1>
+    <button id="import-btn">导入</button>
+    <button id="to-vocab">生词本</button>
+  </header>
+  <div id="shelf" class="shelf"></div>
+  <div id="empty-shelf" class="empty">
+    书架空空如也<br><br>
+    点右上角「导入」添加书籍<br>
+    支持 .epub / .txt / .md / .html<br><br>
+    <span style="font-size:13px">从"文件"App、iCloud Drive、微信文件里选择</span>
+  </div>
+  <input type="file" id="file-input" accept=".txt,.md,.epub,.html,.htm" multiple hidden>
+</div>
+
+<div id="reader" class="view">
+  <header class="topbar">
+    <button id="back-btn">‹ 书架</button>
+    <div class="bar-title" id="reader-title"></div>
+    <div class="bar-actions">
+      <button id="btn-tts" title="朗读">🔊</button>
+      <button id="btn-font" title="字号">Aa</button>
+      <button id="btn-theme" title="主题">◐</button>
+    </div>
+  </header>
+  <div class="progress-bar"><div id="progress-fill"></div></div>
+  <div id="reader-content"></div>
+</div>
+
+<div id="vocab" class="view">
+  <header class="topbar">
+    <button id="back-from-vocab">‹ 书架</button>
+    <h1>生词本</h1>
+    <div style="width:50px"></div>
+  </header>
+  <div id="vocab-list"></div>
+</div>
+
+<div id="word-card">
+  <div class="card-header">
+    <span class="card-word">
+      <span id="card-word-text"></span>
+      <button class="speak-btn" id="speak-word">🔊</button>
+    </span>
+    <button class="close-btn" id="close-card">×</button>
+  </div>
+  <div class="card-phonetic" id="card-phonetic"></div>
+  <div class="card-block">
+    <div class="card-label">中文</div>
+    <div class="card-translation" id="card-translation"></div>
+  </div>
+  <div class="card-block hidden" id="block-definition">
+    <div class="card-label">English</div>
+    <div class="card-definition" id="card-definition"></div>
+  </div>
+  <div class="card-block hidden" id="block-context">
+    <div class="card-label">文中句子</div>
+    <div class="card-context" id="card-context"></div>
+  </div>
+  <div class="card-block hidden" id="block-example">
+    <div class="card-label">Example</div>
+    <div class="card-example" id="card-example"></div>
+  </div>
+  <div class="card-actions">
+    <button class="btn-add" id="add-to-vocab">加入生词本</button>
+  </div>
+</div>
+<div id="overlay"></div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+let books = [];
+let currentBook = null;
+let currentWord = '';
+let currentSentence = '';
+let selectedSpan = null;
+let fontSize = parseInt(localStorage.getItem('fontSize')||'21',10);
+
+/* ---------- IndexedDB ---------- */
+function openDB(){
+  return new Promise((res, rej)=>{
+    const req = indexedDB.open('shuyu', 1);
+    req.onupgradeneeded = e=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains('books')) db.createObjectStore('books', {keyPath:'id'});
+    };
+    req.onsuccess = ()=>res(req.result);
+    req.onerror = ()=>rej(req.error);
+  });
+}
+async function saveBook(book){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction('books','readwrite');
+    tx.objectStore('books').put(book);
+    tx.oncomplete = res;
+    tx.onerror = ()=>rej(tx.error);
+  });
+}
+async function getAllBooks(){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction('books','readonly');
+    const req = tx.objectStore('books').getAll();
+    req.onsuccess = ()=>res(req.result||[]);
+    req.onerror = ()=>rej(req.error);
+  });
+}
+async function deleteBook(id){
+  const db = await openDB();
+  return new Promise((res,rej)=>{
+    const tx = db.transaction('books','readwrite');
+    tx.objectStore('books').delete(id);
+    tx.oncomplete = res;
+    tx.onerror = ()=>rej(tx.error);
+  });
+}
+
+/* ---------- 视图切换 ---------- */
+function showView(name){
+  ['library','reader','vocab'].forEach(v=>$(v).classList.toggle('active', v===name));
+  window.scrollTo(0,0);
+}
+
+/* ---------- 文件导入 ---------- */
+$('import-btn').onclick = ()=>$('file-input').click();
+
+$('file-input').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files||[]);
+  e.target.value = '';
+  if(!files.length) return;
+  for(const file of files){
+    try{
+      toast('正在导入：'+file.name);
+      const book = await parseFile(file);
+      if(!book.chapters || !book.chapters.some(c=>c.text && c.text.trim().length>20)){
+        toast('导入失败：'+file.name+'（内容为空）');
+        continue;
+      }
+      await saveBook(book);
+      toast('已导入：'+book.title);
+    }catch(err){
+      console.error(err);
+      toast('导入失败：'+file.name);
+    }
+  }
+  await loadShelf();
+});
+
+async function parseFile(file){
+  const name = file.name;
+  const ext = (name.split('.').pop()||'').toLowerCase();
+  if(ext === 'epub') return parseEpub(file);
+  let text = await file.text();
+  if(ext === 'html' || ext === 'htm'){
+    const doc = new DOMParser().parseFromString(text,'text/html');
+    doc.querySelectorAll('script,style,head,noscript').forEach(el=>el.remove());
+    const paras = [];
+    const body = doc.body || doc;
+    body.querySelectorAll('p,h1,h2,h3,h4,h5,blockquote,li,div').forEach(el=>{
+      const t = (el.textContent||'').trim();
+      if(t && t.length>1) paras.push(t);
+    });
+    text = paras.length ? paras.join('\n\n') : (body.textContent||'');
+  }
+  return {
+    id: 'b_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    title: name.replace(/\.[^.]+$/,''),
+    author: '',
+    chapters: [{title:'', text: text.trim()}],
+    addedAt: Date.now(),
+    progress: 0
+  };
+}
+
+async function parseEpub(file){
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const containerFile = zip.file('META-INF/container.xml');
+  if(!containerFile) throw new Error('不是有效的 EPUB');
+  const containerXml = await containerFile.async('string');
+  const cDoc = new DOMParser().parseFromString(containerXml,'application/xml');
+  const rootfile = cDoc.getElementsByTagNameNS('*','rootfile')[0];
+  if(!rootfile) throw new Error('EPUB 缺少 rootfile');
+  const opfPath = rootfile.getAttribute('full-path');
+  const opfFile = zip.file(opfPath);
+  if(!opfFile) throw new Error('找不到 OPF');
+  const opfXml = await opfFile.async('string');
+  const opf = new DOMParser().parseFromString(opfXml,'application/xml');
+
+  const title = firstText(opf,'title') || file.name.replace(/\.epub$/i,'');
+  const author = firstText(opf,'creator') || '';
+
+  const baseDir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/')+1) : '';
+  const manifest = {};
+  const items = opf.getElementsByTagNameNS('*','item');
+  for(const item of items){
+    const id = item.getAttribute('id');
+    const href = item.getAttribute('href');
+    if(id && href) manifest[id] = href;
+  }
+  const chapters = [];
+  const spine = opf.getElementsByTagNameNS('*','itemref');
+  for(const ref of spine){
+    const idref = ref.getAttribute('idref');
+    const href = manifest[idref];
+    if(!href) continue;
+    let path = resolvePath(baseDir, href);
+    let entry = zip.file(path) || zip.file(decodeURIComponent(path));
+    if(!entry) continue;
+    const html = await entry.async('string');
+    const doc = new DOMParser().parseFromString(html,'text/html');
+    doc.querySelectorAll('script,style,noscript,svg,img').forEach(el=>el.remove());
+    let chTitle = '';
+    const h = doc.querySelector('h1,h2,h3,title');
+    if(h) chTitle = (h.textContent||'').trim().slice(0,60);
+    const paras = [];
+    const body = doc.body || doc;
+    body.querySelectorAll('p,h1,h2,h3,h4,h5,h6,blockquote,li,pre').forEach(el=>{
+      const t = (el.textContent||'').trim();
+      if(t && t.length>0) paras.push(t);
+    });
+    let text = paras.join('\n\n');
+    if(!text) text = (body.textContent||'').trim();
+    if(text) chapters.push({title: chTitle, text});
+  }
+  if(!chapters.length) throw new Error('EPUB 没有可读内容');
+  return {
+    id: 'b_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    title, author, chapters,
+    addedAt: Date.now(), progress: 0
+  };
+}
+function firstText(xmlDoc, tag){
+  const els = xmlDoc.getElementsByTagNameNS('*', tag);
+  return els.length ? (els[0].textContent||'').trim() : '';
+}
+function resolvePath(base, href){
+  if(/^https?:/i.test(href)) return null;
+  if(href.startsWith('/')) return href.slice(1);
+  const parts = (base+href).split('/');
+  const out = [];
+  for(const p of parts){
+    if(p==='' || p==='.') continue;
+    if(p==='..') out.pop();
+    else out.push(p);
+  }
+  return out.join('/');
+}
+
+/* ---------- 书架 ---------- */
+async function loadShelf(){
+  books = await getAllBooks();
+  books.sort((a,b)=>(b.addedAt||0)-(a.addedAt||0));
+  const shelf = $('shelf');
+  $('empty-shelf').style.display = books.length ? 'none' : 'block';
+  shelf.innerHTML = books.map(b=>{
+    const grad = gradientFor(b.id);
+    const initial = (b.title||'?').trim().charAt(0).toUpperCase();
+    return `<div class="book-card" data-id="${b.id}">
+      <div class="book-spine" style="background:${grad}">${esc(initial)}</div>
+      <div class="book-title">${esc(b.title||'未命名')}</div>
+      <div class="book-meta">${b.author?esc(b.author)+' · ':''}${Math.round(b.progress||0)}%</div>
+      <button class="book-del" data-del="${b.id}">×</button>
+    </div>`;
+  }).join('');
+  shelf.querySelectorAll('.book-card').forEach(card=>{
+    card.addEventListener('click', e=>{
+      if(e.target.classList.contains('book-del')) return;
+      openBook(card.dataset.id);
+    });
+  });
+  shelf.querySelectorAll('.book-del').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const id = btn.dataset.del;
+      if(!confirm('删除这本书？')) return;
+      await deleteBook(id);
+      await loadShelf();
+      toast('已删除');
+    });
+  });
+}
+function gradientFor(seed){
+  const colors = ['#5e5ce6','#0a84ff','#34c759','#ff9500','#ff2d55','#af52de','#ff3b30','#30b0c7','#8b5a2b','#636366'];
+  let h=0;
+  for(let i=0;i<seed.length;i++) h = (h*31+seed.charCodeAt(i))>>>0;
+  const c1 = colors[h%colors.length];
+  const c2 = colors[(h>>3)%colors.length];
+  return `linear-gradient(135deg, ${c1}, ${c2})`;
+}
+
+/* ---------- 打开书 ---------- */
+async function openBook(id){
+  const book = books.find(b=>b.id===id);
+  if(!book) return;
+  currentBook = book;
+  $('reader-title').textContent = book.title || '';
+  renderChapters(book);
+  showView('reader');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo(0, max * ((book.progress||0)/100));
+      updateProgress();
+    });
+  });
+}
+function renderChapters(book){
+  const container = $('reader-content');
+  container.innerHTML = '';
+  book.chapters.forEach((ch, ci)=>{
+    if(ch.title){
+      const h = document.createElement('div');
+      h.className = 'chapter-title';
+      h.textContent = ch.title;
+      container.appendChild(h);
+    }
+    const paras = ch.text.split(/\n+/).filter(p=>p.trim());
+    paras.forEach(para=>{
+      const p = document.createElement('p');
+      p.dataset.ci = ci;
+      renderParagraph(p, para.trim());
+      container.appendChild(p);
+    });
+  });
+}
+function renderParagraph(p, text){
+  const re = /([A-Za-z]+(?:['\u2019][A-Za-z]+)*)/g;
+  let last = 0, m;
+  while((m = re.exec(text))!==null){
+    if(m.index > last) p.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const span = document.createElement('span');
+    span.className = 'word';
+    span.textContent = m[0];
+    span.addEventListener('click', e=>onWordClick(e, span));
+    p.appendChild(span);
+    last = m.index + m[0].length;
+  }
+  if(last < text.length) p.appendChild(document.createTextNode(text.slice(last)));
+}
+
+/* ---------- 点击查词 ---------- */
+function onWordClick(e, span){
+  e.stopPropagation();
+  if(selectedSpan) selectedSpan.classList.remove('selected');
+  selectedSpan = span;
+  span.classList.add('selected');
+  currentWord = span.textContent;
+  const p = span.closest('p');
+  currentSentence = getSentence((p ? p.textContent : ''), currentWord);
+  openCard(currentWord);
+}
+function getSentence(text, word){
+  const idx = text.toLowerCase().indexOf(word.toLowerCase());
+  if(idx < 0) return text;
+  let start = Math.max(text.lastIndexOf('.', idx), text.lastIndexOf('!', idx), text.lastIndexOf('?', idx));
+  start = start < 0 ? 0 : start + 1;
+  let end = text.length;
+  for(const ch of ['.','!','?']){
+    const i = text.indexOf(ch, idx + word.length);
+    if(i>=0 && i<end) end = i;
+  }
+  if(end < text.length) end += 1;
+  return text.slice(start, end).trim();
+}
+
+const IRREGULAR = {was:'be',were:'be',is:'be',are:'be',am:'be',been:'be',being:'be',has:'have',had:'have',having:'have',did:'do',does:'do',done:'do',doing:'do',went:'go',gone:'go',goes:'go',said:'say',says:'say',made:'make',came:'come',took:'take',taken:'take',saw:'see',seen:'see',got:'get',gotten:'get',knew:'know',known:'know',thought:'think',children:'child',men:'man',women:'woman',people:'person',feet:'foot',teeth:'tooth',mice:'mouse',better:'good',best:'good',worse:'bad',worst:'bad',found:'find',gave:'give',given:'give',left:'leave',felt:'feel',kept:'keep',brought:'bring',bought:'buy',began:'begin',begun:'begin',broke:'break',broken:'break',wrote:'write',written:'write',spoke:'speak',spoken:'speak',ran:'run',ate:'eat',eaten:'eat',drank:'drink',drunk:'drink',flew:'fly',flown:'fly',swam:'swim',swum:'swim',threw:'throw',thrown:'throw',grew:'grow',grown:'grow',drew:'draw',drawn:'draw',fell:'fall',fallen:'fall',rode:'ride',ridden:'ride',sang:'sing',sung:'sing',taught:'teach',caught:'catch',fought:'fight',sought:'seek'};
+function lemmatize(word){
+  const w = word.toLowerCase();
+  if(IRREGULAR[w]) return IRREGULAR[w];
+  if(w.length>4 && /ies$/.test(w)) return w.slice(0,-3)+'y';
+  if(w.length>4 && /ves$/.test(w)) return w.slice(0,-3)+'f';
+  if(w.length>3 && /es$/.test(w)) return w.slice(0,-2);
+  if(w.length>2 && /s$/.test(w) && !/ss$/.test(w)) return w.slice(0,-1);
+  if(w.length>4 && /ied$/.test(w)) return w.slice(0,-3)+'y';
+  if(w.length>3 && /ed$/.test(w)){
+    let b = w.slice(0,-2);
+    if(b.length>2 && b[b.length-1]===b[b.length-2] && !/[aeiou]/.test(b[b.length-1])) b = b.slice(0,-1);
+    return b;
+  }
+  if(w.length>5 && /ing$/.test(w)){
+    let b = w.slice(0,-3);
+    if(b.length>2 && b[b.length-1]===b[b.length-2]) b = b.slice(0,-1);
+    return b;
+  }
+  return w;
+}
+
+const dictCache = {};
+function openCard(word){
+  $('card-word-text').textContent = word;
+  $('card-phonetic').textContent = '';
+  $('card-translation').innerHTML = '<span class="loading">查询中…</span>';
+  $('block-definition').classList.add('hidden');
+  $('block-example').classList.add('hidden');
+  $('block-context').classList.add('hidden');
+  if(currentSentence){
+    $('card-context').textContent = '… ' + currentSentence + ' …';
+    $('block-context').classList.remove('hidden');
+  }
+  const addBtn = $('add-to-vocab');
+  const inVocab = isInVocab(word);
+  addBtn.textContent = inVocab ? '已加入 ✓' : '加入生词本';
+  addBtn.classList.toggle('added', inVocab);
+
+  $('word-card').classList.add('show');
+  $('overlay').classList.add('show');
+
+  const lemma = lemmatize(word);
+  if(dictCache[lemma]){ renderCard(dictCache[lemma]); return; }
+
+  Promise.allSettled([fetchTranslation(lemma), fetchDictionary(lemma)]).then(results=>{
+    const r = {translation:'', phonetic:'', definition:'', example:''};
+    if(results[0].status==='fulfilled' && results[0].value) r.translation = results[0].value;
+    if(results[1].status==='fulfilled' && results[1].value){
+      const d = results[1].value;
+      r.phonetic = d.phonetic || '';
+      r.definition = d.definition || '';
+      r.example = d.example || '';
+    }
+    dictCache[lemma] = r;
+    renderCard(r);
+  });
+}
+function renderCard(r){
+  $('card-phonetic').textContent = r.phonetic || '';
+  $('card-translation').textContent = r.translation || '未找到翻译';
+  if(r.definition){ $('card-definition').textContent = r.definition; $('block-definition').classList.remove('hidden'); }
+  if(r.example){ $('card-example').textContent = r.example; $('block-example').classList.remove('hidden'); }
+}
+function closeCard(){
+  $('word-card').classList.remove('show');
+  $('overlay').classList.remove('show');
+  if(selectedSpan){ selectedSpan.classList.remove('selected'); selectedSpan = null; }
+}
+$('close-card').onclick = closeCard;
+$('overlay').onclick = closeCard;
+
+$('speak-word').onclick = ()=>{
+  const w = currentWord;
+  if(!w || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(w);
+  u.lang = 'en-US';
+  u.rate = 0.85;
+  speechSynthesis.speak(u);
+};
+
+function fetchTranslation(word){
+  const url = 'https://api.mymemory.translated.net/get?q='+encodeURIComponent(word)+'&langpair=en|zh-CN';
+  return fetch(url).then(r=>r.ok?r.json():null).then(d=>{
+    if(!d) return '';
+    let t = (d.responseData && d.responseData.translatedText) || '';
+    if(t.toLowerCase() === word.toLowerCase()){
+      const m = (d.matches||[]).filter(x=>x.translation && x.translation.toLowerCase()!==word.toLowerCase())[0];
+      if(m) t = m.translation;
+    }
+    return t;
+  }).catch(()=>'');
+}
+function fetchDictionary(word){
+  const url = 'https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(word);
+  return fetch(url).then(r=>r.ok?r.json():null).then(data=>{
+    if(!Array.isArray(data) || !data[0]) return null;
+    const entry = data[0];
+    let phonetic = entry.phonetic || '';
+    if(!phonetic && entry.phonetics){
+      const p = entry.phonetics.filter(x=>x.text)[0];
+      if(p) phonetic = p.text;
+    }
+    const meaning = entry.meanings && entry.meanings[0];
+    const def = meaning && meaning.definitions && meaning.definitions[0];
+    return {
+      phonetic,
+      definition: def ? def.definition : '',
+      example: (def && def.example) || ''
+    };
+  }).catch(()=>null);
+}
+
+/* ---------- 生词本 ---------- */
+function getVocab(){ try{ return JSON.parse(localStorage.getItem('vocab')||'[]'); }catch(e){ return []; } }
+function saveVocab(list){ try{ localStorage.setItem('vocab', JSON.stringify(list)); }catch(e){} }
+function isInVocab(word){ return getVocab().some(v=>v.word.toLowerCase()===word.toLowerCase()); }
+
+$('add-to-vocab').onclick = ()=>{
+  if(isInVocab(currentWord)) return;
+  const list = getVocab();
+  list.unshift({
+    word: currentWord,
+    translation: $('card-translation').textContent,
+    definition: $('card-definition').textContent,
+    sentence: currentSentence,
+    book: currentBook ? currentBook.title : '',
+    added: Date.now()
+  });
+  saveVocab(list);
+  $('add-to-vocab').textContent = '已加入 ✓';
+  $('add-to-vocab').classList.add('added');
+  toast('已加入生词本');
+};
+
+$('to-vocab').onclick = ()=>{ renderVocab(); showView('vocab'); };
+$('back-from-vocab').onclick = ()=>showView('library');
+
+function renderVocab(){
+  const list = getVocab();
+  const c = $('vocab-list');
+  if(!list.length){
+    c.innerHTML = '<div class="empty">生词本还是空的<br>阅读时点击单词加入</div>';
+    return;
+  }
+  c.innerHTML = list.map((v,i)=>`
+    <div class="vocab-item">
+      <div class="vocab-word">${esc(v.word)}</div>
+      <div class="vocab-trans">${esc(v.translation||'')}</div>
+      ${v.sentence?`<div class="vocab-sentence">${esc(v.sentence)}</div>`:''}
+      <button class="vocab-del" data-i="${i}">删除</button>
+    </div>
+  `).join('');
+  c.querySelectorAll('.vocab-del').forEach(btn=>{
+    btn.onclick = ()=>{
+      const list = getVocab();
+      list.splice(parseInt(btn.dataset.i,10),1);
+      saveVocab(list);
+      renderVocab();
+    };
+  });
+}
+
+/* ---------- 进度 / 工具栏 ---------- */
+let saveTimer = null;
+window.addEventListener('scroll', ()=>{
+  updateProgress();
+  if(currentBook && $('reader').classList.contains('active')){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>saveProgress(), 400);
+  }
+}, {passive:true});
+function updateProgress(){
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  const p = max > 0 ? Math.min(100, Math.max(0, window.scrollY / max * 100)) : 0;
+  $('progress-fill').style.width = p.toFixed(1)+'%';
+}
+async function saveProgress(){
+  if(!currentBook) return;
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  currentBook.progress = max > 0 ? Math.min(100, Math.max(0, window.scrollY / max * 100)) : 0;
+  try{ await saveBook(currentBook); }catch(e){}
+}
+$('back-btn').onclick = async ()=>{
+  await saveProgress();
+  await loadShelf();
+  showView('library');
+};
+
+$('btn-tts').onclick = ()=>{
+  if(!window.speechSynthesis){ toast('当前浏览器不支持朗读'); return; }
+  const sel = window.getSelection();
+  let text = sel ? sel.toString().trim() : '';
+  if(!text){
+    const paragraphs = $('reader-content').querySelectorAll('p');
+    let target = null;
+    for(const p of paragraphs){
+      const rect = p.getBoundingClientRect();
+      if(rect.bottom > 80){ target = p; break; }
+    }
+    if(target) text = target.textContent;
+  }
+  if(!text){ toast('没有可朗读的内容'); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.slice(0, 1500));
+  u.lang = 'en-US';
+  u.rate = 0.95;
+  speechSynthesis.speak(u);
+  toast('开始朗读');
+};
+
+function applyFontSize(){
+  document.documentElement.style.setProperty('--reader-size', fontSize+'px');
+  localStorage.setItem('fontSize', fontSize);
+}
+$('btn-font').onclick = ()=>{
+  const sizes = [17,19,21,23,26,29];
+  let i = sizes.indexOf(fontSize);
+  if(i<0) i = 2;
+  fontSize = sizes[(i+1)%sizes.length];
+  applyFontSize();
+  toast('字号 '+fontSize+'px');
+};
+applyFontSize();
+
+function applyTheme(){
+  const dark = localStorage.getItem('theme')==='dark';
+  document.body.classList.toggle('dark', dark);
+}
+$('btn-theme').onclick = ()=>{
+  const dark = document.body.classList.toggle('dark');
+  localStorage.setItem('theme', dark?'dark':'light');
+};
+applyTheme();
+
+/* ---------- 工具 ---------- */
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer = null;
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- 启动 ---------- */
+loadShelf();
+
+})();
+</script>
+</body>
+</html>
